@@ -6,3 +6,4 @@ seaborn
 ipykernel
 holidays
 streamlit
+prophet
