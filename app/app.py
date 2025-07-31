@@ -3,6 +3,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+from model.prophet_model import ProphetModel
+
+prophet_model: ProphetModel = None
 
 def show_graph_1(df):
     
@@ -86,9 +89,24 @@ def show_analys_per_name(df: pd.DataFrame):
     filtered_df = df[df['item_name'] == selected_item]
     sales_by_date = filtered_df.groupby(filtered_df['date'].dt.to_period('M'))['sales_qty'].sum()
 
-    fig, ax = plt.subplots(figsize=(10,6))
-    ax.plot(sales_by_date.index.astype(str), sales_by_date.values, marker='o')
-    ax.set_title(f'Sales Quantity {selected_item}')
+    fig, ax = plt.subplots(figsize=(12,6))
+    # ax.plot(sales_by_date.index.astype(str), sales_by_date.values, marker='o')
+
+    forecast = prophet_model.predict(selected_item, 30)
+
+    last_date = filtered_df['date'].max()
+    forecast_future = forecast[forecast['ds']> last_date]
+
+    ax.plot(forecast_future['ds'], forecast_future['yhat'],
+             color='green', label='Forecast')
+    ax.fill_between(
+        forecast_future['ds'],
+        forecast_future['yhat_lower'],
+        forecast_future['yhat_upper'],
+        color='green', alpha=0.2, label='Confidence Interval'
+    )
+
+    ax.set_title(f'Sales Quantity and Forecast for {selected_item}')
     ax.set_xlabel('Date')
     ax.set_ylabel('Sales Quantity')
     plt.xticks(rotation=45)
@@ -97,19 +115,34 @@ def show_analys_per_name(df: pd.DataFrame):
 
 
 def upload_csv():
-    uploaded_file = st.file_uploader('Choose CSV-file', type='csv')
+    global prophet_model
+    
+    if 'df' not in st.session_state or 'prophet_model' not in st.session_state:
+        uploaded_file = st.file_uploader('Choose CSV-file', type='csv')
 
-    if uploaded_file is not None:
-        # reading CSV-file
-        df = pd.read_csv(uploaded_file)
-        st.write('Data Preview:')
-        st.dataframe(df)
+        if uploaded_file is not None:
+            df = pd.read_csv(uploaded_file)
+            st.write('Data Preview:')
+            st.dataframe(df)
 
-        df['date']=pd.to_datetime(df['date'])
+            df['date']=pd.to_datetime(df['date'])
+            df['item_name'] = df['item_name'].astype('category')
+            
+            prophet_model = ProphetModel()
+            prophet_model.train(df)
+
+            st.session_state.df = df
+            st.session_state.prophet_model = prophet_model
+
+            show_graphs(df)
+            show_analys_per_name(df)    
+    else:
+        df = st.session_state.df
+        prophet_model = st.session_state.prophet_model
 
         show_graphs(df)
         show_analys_per_name(df)
-
+    
 
 def main():
     st.title('Sales Analysis')
