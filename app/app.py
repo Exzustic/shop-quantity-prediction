@@ -87,18 +87,39 @@ def show_analys_per_name(df: pd.DataFrame):
     selected_item = st.selectbox('Select product', unique_items)
     
     filtered_df = df[df['item_name'] == selected_item]
-    sales_by_date = filtered_df.groupby(filtered_df['date'].dt.to_period('M'))['sales_qty'].sum()
+    
+    sales_by_date = (
+        filtered_df
+        .groupby(filtered_df['date'].dt.to_period('D'))['sales_qty']
+        .sum()
+        .reset_index()
+    )
+    sales_by_date['date'] = sales_by_date['date'].dt.to_timestamp()  # <- Ключевая строка
 
-    fig, ax = plt.subplots(figsize=(12,6))
-    # ax.plot(sales_by_date.index.astype(str), sales_by_date.values, marker='o')
+    min_date = sales_by_date['date'].min().to_pydatetime()
+    max_date = sales_by_date['date'].max().to_pydatetime()
+    date_range = st.slider(
+        'Select date',
+        min_value=min_date,
+        max_value=max_date,
+        value=(min_date,max_date),
+        format='YYYY-MM'
+        )
+    
+    filtered_sales = sales_by_date[
+        (sales_by_date['date'] >= date_range[0]) &
+        (sales_by_date['date'] <= date_range[1])
+    ]
 
     forecast = prophet_model.predict(selected_item, 30)
-
     last_date = filtered_df['date'].max()
-    forecast_future = forecast[forecast['ds']> last_date]
+    forecast_future = forecast[forecast['ds'] > last_date]
 
-    ax.plot(forecast_future['ds'], forecast_future['yhat'],
-             color='green', label='Forecast')
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    ax.plot(filtered_sales['date'], filtered_sales['sales_qty'], marker='o', label='Historical Sales')
+
+    ax.plot(forecast_future['ds'], forecast_future['yhat'], color='green', label='Forecast')
     ax.fill_between(
         forecast_future['ds'],
         forecast_future['yhat_lower'],
@@ -106,9 +127,10 @@ def show_analys_per_name(df: pd.DataFrame):
         color='green', alpha=0.2, label='Confidence Interval'
     )
 
-    ax.set_title(f'Sales Quantity and Forecast for {selected_item}')
-    ax.set_xlabel('Date')
+    ax.set_title(f'Sales and Forecast for {selected_item}')
+    ax.set_xlabel('Month')
     ax.set_ylabel('Sales Quantity')
+    ax.legend()
     plt.xticks(rotation=45)
 
     st.pyplot(fig)
