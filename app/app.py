@@ -113,7 +113,7 @@ def show_analys_per_name(df: pd.DataFrame):
 
     forecast = prophet_model.predict(selected_item, 30)
     last_date = filtered_df['date'].max()
-    forecast_future = forecast[forecast['ds'] > last_date]
+    forecast_future: pd.DataFrame = forecast[forecast['ds'] > last_date]
 
     fig, ax = plt.subplots(figsize=(12, 6))
 
@@ -134,6 +134,21 @@ def show_analys_per_name(df: pd.DataFrame):
     plt.xticks(rotation=45)
 
     st.pyplot(fig)
+
+    df_for_show = forecast_future.drop(columns=['trend_lower', 'trend_upper'], axis=1)
+    df_for_show = df_for_show.reset_index()
+    df_for_show['From-To'] = df_for_show.apply(
+    lambda row: f"{row['yhat_lower']:.0f} - {row['yhat_upper']:.0f}", axis=1
+    )
+    df_for_show['trend'] = df_for_show.apply(
+        lambda row : f"{row['trend']:.0f}", axis=1
+    )
+    columns = [item for item in df_for_show.columns.to_list() if item not in ['trend', 'ds', 'From-To']]
+    df_for_show = df_for_show.drop(columns=columns, axis=1)
+    df_for_show = df_for_show.rename(columns={'ds': 'Date'})
+    df_for_show['Date'] = df_for_show['Date'].dt.strftime('%Y-%m-%d')
+
+    st.dataframe(df_for_show)
 
 
 def upload_csv():
