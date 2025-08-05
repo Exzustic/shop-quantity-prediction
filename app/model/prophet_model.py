@@ -25,6 +25,14 @@ class ProphetModel:
 
 
     def predict(self, item_name: str, period: int):
-        return self.forecasts[item_name]
+        if item_name not in self.forecasts:
+                raise ValueError(f"No forecast found for item: {item_name}")
+            
+        forecast = self.forecasts[item_name]
+            
+        last_train_date = self.models[item_name].history['ds'].max()
+        future_forecast = forecast[forecast['ds'] > last_train_date]
+        
+        return future_forecast.head(period)
 
 

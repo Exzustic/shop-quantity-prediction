@@ -6,8 +6,10 @@ import seaborn as sns
 from model.prophet_model import ProphetModel
 
 prophet_model: ProphetModel = None
+df: pd.DataFrame = None
 
-def show_graph_1(df):
+def show_graph_1():
+    global df
     
     monthly_sales = df.groupby(df['date'].dt.to_period('M'))['sales_qty'].sum()
 
@@ -25,7 +27,9 @@ def show_graph_1(df):
     return fig
 
 
-def show_graph_2(df):
+def show_graph_2():
+    global df
+
     mean_quantity_per_day = df.groupby('category')['sales_qty'].mean()
 
     fig, ax = plt.subplots(figsize=(10,6))
@@ -39,10 +43,12 @@ def show_graph_2(df):
     return fig
 
 
-def show_graph_3(df):
+def show_graph_3():
+    global df
+
     mean_day_sales = df.groupby(df['date'].dt.day)['sales_qty'].mean()
 
-    fig, ax = plt.subplots(figsize=(8,6))
+    fig, ax = plt.subplots(figsize=(10,6))
 
     ax.plot(mean_day_sales.index.astype(str), mean_day_sales.values)
     ax.set_title('Average Sales Quantity per Day of the Month', weight='bold')
@@ -53,10 +59,12 @@ def show_graph_3(df):
     return fig
 
 
-def show_graph_4(df):
+def show_graph_4():
+    global df
+
     mean_quantity_holiday = df.groupby('is_holiday')['sales_qty'].mean()
 
-    fig, ax = plt.subplots(figsize=(8,6))
+    fig, ax = plt.subplots(figsize=(10,6))
     ax.bar([0,1], mean_quantity_holiday.values, color=plt.get_cmap('tab10').colors[:2])
     plt.xticks([0, 1], ['Regular Day', 'Holiday'])
 
@@ -68,23 +76,26 @@ def show_graph_4(df):
     return fig
 
 
-def show_graphs(df: pd.DataFrame):
+def show_graphs():
 
     col1, col2 = st.columns(2)
 
     with(col1):
-        st.pyplot(show_graph_1(df))
-        st.pyplot(show_graph_3(df))
+        st.pyplot(show_graph_1())
+        st.pyplot(show_graph_3())
 
     with(col2):
-        st.pyplot(show_graph_2(df))
-        st.pyplot(show_graph_4(df))
+        st.pyplot(show_graph_2())
+        st.pyplot(show_graph_4())
 
 
 
-def show_analys_per_name(df: pd.DataFrame):
+def show_analys_per_name():
+    global df
+
     unique_items = df['item_name'].unique()
     selected_item = st.selectbox('Select product', unique_items)
+    selected_date = st.number_input('Write days to predict', min_value=1, max_value=30, )
     
     filtered_df = df[df['item_name'] == selected_item]
     
@@ -111,7 +122,7 @@ def show_analys_per_name(df: pd.DataFrame):
         (sales_by_date['date'] <= date_range[1])
     ]
 
-    forecast = prophet_model.predict(selected_item, 30)
+    forecast = prophet_model.predict(selected_item, selected_date)
     last_date = filtered_df['date'].max()
     forecast_future: pd.DataFrame = forecast[forecast['ds'] > last_date]
 
@@ -119,13 +130,14 @@ def show_analys_per_name(df: pd.DataFrame):
 
     ax.plot(filtered_sales['date'], filtered_sales['sales_qty'], marker='o', label='Historical Sales')
 
-    ax.plot(forecast_future['ds'], forecast_future['yhat'], color='green', label='Forecast')
-    ax.fill_between(
-        forecast_future['ds'],
-        forecast_future['yhat_lower'],
-        forecast_future['yhat_upper'],
-        color='green', alpha=0.2, label='Confidence Interval'
-    )
+    if date_range[1] == max_date:
+        ax.plot(forecast_future['ds'], forecast_future['yhat'], color='green', label='Forecast')
+        ax.fill_between(
+            forecast_future['ds'],
+            forecast_future['yhat_lower'],
+            forecast_future['yhat_upper'],
+            color='green', alpha=0.2, label='Confidence Interval'
+        )
 
     ax.set_title(f'Sales and Forecast for {selected_item}')
     ax.set_xlabel('Month')
@@ -134,7 +146,7 @@ def show_analys_per_name(df: pd.DataFrame):
     plt.xticks(rotation=45)
 
     st.pyplot(fig)
-
+    
     df_for_show = forecast_future.drop(columns=['trend_lower', 'trend_upper'], axis=1)
     df_for_show = df_for_show.reset_index()
     df_for_show['From-To'] = df_for_show.apply(
@@ -152,9 +164,10 @@ def show_analys_per_name(df: pd.DataFrame):
 
 
 def upload_csv():
-    global prophet_model
+    global prophet_model, df
     
-    if 'df' not in st.session_state or 'prophet_model' not in st.session_state:
+    ## TODO: Fix with changing csv file all project changes
+    if ('df' not in st.session_state or 'prophet_model' not in st.session_state):
         uploaded_file = st.file_uploader('Choose CSV-file', type='csv')
 
         if uploaded_file is not None:
@@ -171,14 +184,14 @@ def upload_csv():
             st.session_state.df = df
             st.session_state.prophet_model = prophet_model
 
-            show_graphs(df)
-            show_analys_per_name(df)    
+            show_graphs()
+            show_analys_per_name()    
     else:
         df = st.session_state.df
         prophet_model = st.session_state.prophet_model
 
-        show_graphs(df)
-        show_analys_per_name(df)
+        show_graphs()
+        show_analys_per_name()
     
 
 def main():
