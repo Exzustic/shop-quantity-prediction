@@ -82,11 +82,12 @@ def show_graphs():
 
     with(col1):
         st.pyplot(show_graph_1())
-        st.pyplot(show_graph_3())
+        # st.pyplot(show_graph_3())
 
     with(col2):
-        st.pyplot(show_graph_2())
-        st.pyplot(show_graph_4())
+        st.pyplot(show_graph_3())
+        # st.pyplot(show_graph_2())
+        # st.pyplot(show_graph_4())
 
 
 
@@ -166,26 +167,46 @@ def show_analys_per_name():
 def upload_csv():
     global prophet_model, df
     
-    ## TODO: Fix with changing csv file all project changes
-    if ('df' not in st.session_state or 'prophet_model' not in st.session_state):
+    if 'df' not in st.session_state or 'prophet_model' not in st.session_state:
         uploaded_file = st.file_uploader('Choose CSV-file', type='csv')
 
         if uploaded_file is not None:
-            df = pd.read_csv(uploaded_file)
-            st.write('Data Preview:')
-            st.dataframe(df)
+            df_raw = pd.read_csv(uploaded_file)
+            st.write('### Raw Data Preview')
+            st.dataframe(df_raw)
 
-            df['date']=pd.to_datetime(df['date'])
-            df['item_name'] = df['item_name'].astype('category')
-            
-            prophet_model = ProphetModel()
-            prophet_model.train(df)
+            st.write("### Select Columns for Analysis")
 
-            st.session_state.df = df
-            st.session_state.prophet_model = prophet_model
+            column_options = df_raw.columns.tolist()
 
-            show_graphs()
-            show_analys_per_name()    
+            date_col = st.selectbox("Select Date Column", column_options, key='date_col')
+            item_col = st.selectbox("Select Product Name Column", column_options, key='item_col')
+            qty_col = st.selectbox("Select Sales Quantity Column", column_options, key='qty_col')
+
+            if st.button("Confirm Selection and Process Data"):
+                df = df_raw[[date_col, item_col, qty_col]].copy()
+                df.columns = ['date', 'item_name', 'sales_qty']
+
+                # Типи
+                df['date'] = pd.to_datetime(df['date'])
+                df['item_name'] = df['item_name'].astype('category')
+                df['sales_qty'] = pd.to_numeric(df['sales_qty'], errors='coerce').fillna(0)
+
+                # Видалення старого і збереження нового в сесію
+                prophet_model = ProphetModel()
+                prophet_model.train(df)
+
+                st.session_state.df = df
+                st.session_state.prophet_model = prophet_model
+
+                st.success("Data processed successfully!")
+
+                st.write("### Processed Data Preview")
+                st.dataframe(df)
+
+                show_graphs()
+                show_analys_per_name()
+
     else:
         df = st.session_state.df
         prophet_model = st.session_state.prophet_model
